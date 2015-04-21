@@ -6,12 +6,14 @@ Description: Secure, lightweight and flexible contact form with plenty of option
 Tags: captcha, contact, contact form, email, form, mail
 Author: Jeff Starr
 Author URI: http://monzilla.biz/
+Donate link: http://m0n.co/donate
 Contributors: specialk
-Donate link: http://wp-tao.com/
-Requires at least: 3.7
-Tested up to: 4.0
+Requires at least: 3.8
+Tested up to: 4.1
 Stable tag: trunk
-Version: 20140922
+Version: 20150314
+Text Domain: coldform
+Domain Path: /languages/
 License: GPL v2
 
 Contact Coldform is a secure, lightweight and flexible contact form with plenty of options and squeaky clean markup.
@@ -97,6 +99,19 @@ __Important!__ Many things have changed in the new version of the plugin. Please
 Screenshots available at the [Coldform Homepage](http://perishablepress.com/contact-coldform/#screenshots).
 
 == Changelog ==
+
+= Version 20150314 =
+
+* Tested with latest version of WP (4.1)
+* Increased minimum version to WP 3.8
+* Removed deprecated screen_icon()
+* Removed redundant htmlentities()
+* Replaced htmlentities() with sanitize_text_field()
+* Added $contact_coldform_wp_vers
+* Streamline/fine-tune plugin code
+* Added Reply-To and Return-Path to email headers
+* Added Text Domain and Domain Path to file header
+* Replaced default .mo/.po templates with .pot template
 
 = Version 20140922 =
 
@@ -201,6 +216,11 @@ I try to keep an eye on the WordPress forums, but it's best to [contact me](http
 
 == Donations ==
 
-I created this plugin with love for the WP community. To show support, consider purchasing one of my books: [The Tao of WordPress](http://wp-tao.com/), [Digging into WordPress](http://digwp.com/), or [.htaccess made easy](http://htaccessbook.com/).
+I created this plugin with love for the WP community. To show support, you can [make a donation](http://m0n.co/donate) or purchase one of my books: 
+
+* [The Tao of WordPress](http://wp-tao.com/)
+* [Digging into WordPress](http://digwp.com/)
+* [.htaccess made easy](http://htaccessbook.com/)
+* [WordPress Themes In Depth](http://wp-tao.com/wordpress-themes-book/)
 
 Links, tweets and likes also appreciated. Thanks! :)
