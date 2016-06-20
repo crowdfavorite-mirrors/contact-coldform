@@ -1,35 +1,100 @@
 <?php 
 /*
 Plugin Name: Contact Coldform
-Plugin URI: http://perishablepress.com/contact-coldform/
+Plugin URI: https://perishablepress.com/contact-coldform/
 Description: Secure, lightweight and flexible contact form with plenty of options and squeaky clean markup.
 Tags: captcha, contact, contact form, email, form, mail
 Author: Jeff Starr
 Author URI: http://monzilla.biz/
 Donate link: http://m0n.co/donate
 Contributors: specialk
-Requires at least: 3.8
-Tested up to: 4.1
+Requires at least: 4.1
+Tested up to: 4.5
 Stable tag: trunk
-Version: 20150314
+Version: 20160329
 Text Domain: coldform
 Domain Path: /languages/
-License: GPL v2
+License: GPL v2 or later
 */
 
 if (!function_exists('add_action')) die();
  
-$contact_coldform_wp_vers = '3.8';
-$contact_coldform_version = '20150314';
+$contact_coldform_wp_vers = '4.1';
+$contact_coldform_version = '20160329';
 $contact_coldform_plugin  = __('Contact Coldform', 'coldform');
 $contact_coldform_options = get_option('contact_coldform_options');
 $contact_coldform_path    = plugin_basename(__FILE__); // 'contact-coldform/contact-coldform.php';
-$contact_coldform_homeurl = 'http://perishablepress.com/contact-coldform/';
+$contact_coldform_homeurl = 'https://perishablepress.com/contact-coldform/';
 
 function coldform_i18n_init() {
 	load_plugin_textdomain('coldform', false, dirname(plugin_basename(__FILE__)) . '/languages/');
 }
 add_action('plugins_loaded', 'coldform_i18n_init');
+
+
+
+// Begin support for BPMContext - Intranet Plus (1 of 2)
+
+function coldform_bpm_options_setup() {
+	
+	$plugins_array['name']        = __('Contact Coldform', 'coldform');
+	$plugins_array['url']         = 'https://wordpress.org/plugins/contact-coldform/';
+	$plugins_array['slug']        = 'contact-coldform';
+	$plugins_array['plugin_file'] = 'contact-coldform.php';
+	$plugins_array['shortcode']   = 'coldform';
+	
+	do_action('bpmcontext_add_to_allowed_plugins', $plugins_array);
+	
+}
+add_action('admin_init', 'coldform_bpm_options_setup');
+
+function coldform_bpm_admin_notice() {
+	
+	global $current_user;
+	
+	$user_id = $current_user->ID;
+	
+	if (!get_user_meta($user_id, 'coldform_bpm_ignore_notice')) {
+		
+		$link_text    = __('here', 'coldform');
+		$link_title   = __('BPMContext Integration', 'coldform');
+		$link_label   = __('More information about BPMContext Integration', 'coldform');
+		$link_class   = 'thickbox';
+		$link_href    = 'plugin-install.php?tab=plugin-information&plugin=bpmcontext&TB_iframe=true&width=772&height=847';
+		$dismiss_text = __('Dismiss notice', 'coldform');
+		$dismiss_href = 'options-general.php?page=contact-coldform/contact-coldform.php&coldform_bpm_nag_ignore=true';
+		
+		echo '<div class="updated"><p>';
+		echo __('Contact Coldform is now compatible with Intranet Plus. ', 'coldform');
+		echo __('Using Intranet Plus with Contact Coldform will help you track and manage contact inquiries. Click ', 'coldform');
+		echo '<a class="'. $link_class .'" data-title="'. $link_title .'" aria-label="'. $link_label .'" href="'. admin_url($link_href) .'">'. $link_text .'</a> ';
+		echo __('for more information and to get the Intranet Plus plugin. ', 'coldform');
+		echo '<a href="'. admin_url($dismiss_href) .'">'. $dismiss_text .'</a>';
+		echo '</p></div>';
+		
+	}
+	
+}
+add_action('admin_notices', 'coldform_bpm_admin_notice');
+
+function coldform_bpm_nag_ignore() {
+	
+	global $current_user;
+	
+	$user_id = $current_user->ID;
+	
+	if (isset($_GET['coldform_bpm_nag_ignore']) && 'true' === $_GET['coldform_bpm_nag_ignore']) {
+		
+		add_user_meta($user_id, 'coldform_bpm_ignore_notice', 'true', true);
+		
+	}
+	
+}
+add_action('admin_init', 'coldform_bpm_nag_ignore');
+
+// End support for BPMContext - Intranet Plus (1 of 2)
+
+
 
 function contact_coldform_require_wp_version() {
 	global $wp_version, $contact_coldform_path, $contact_coldform_plugin, $contact_coldform_wp_vers;
@@ -188,8 +253,10 @@ function contact_coldform_register_style() {
 	}
 	$enable_styles = $contact_coldform_options['coldform_styles'];
 	if ($enable_styles == true) {
+		$protocol = 'http://';
+		if (is_ssl()) $protocol = 'https://';
+		$current_url = esc_url(trailingslashit($protocol . $_SERVER["HTTP_HOST"] . $_SERVER["REQUEST_URI"]));
 		$coldform_url = $contact_coldform_options['coldform_url'];
-		$current_url = trailingslashit('http://' . $_SERVER["HTTP_HOST"] . $_SERVER["REQUEST_URI"]);
 		if ($coldform_url !== '') {
 			if ($coldform_url == $current_url) {
 				wp_register_style('coldform', plugins_url() . '/contact-coldform/coldskins/coldskin-' . $coldskin, array(), $contact_coldform_version, 'all');
@@ -270,7 +337,7 @@ function contact_coldform_display_form() {
 	
 	$coldform = (
 		$contact_coldform_strings['error'] . '
-		<!-- Contact Coldform @ http://perishablepress.com/contact-coldform/ -->
+		<!-- Contact Coldform @ https://perishablepress.com/contact-coldform/ -->
 		<div id="coldform">
 			<form action="' . get_permalink() . '" method="post">
 				<legend title="'. __('Note: text only, no markup.', 'coldform') .'">' . $lgndtext . '</legend>
@@ -310,52 +377,63 @@ function contact_coldform_display_form() {
 	return $coldform;
 }
 
+function coldform_sanitize_text($string) {
+	return stripslashes(strip_tags(trim($string)));
+}
+function coldform_sanitize_email($string) {
+	return filter_var($string, FILTER_SANITIZE_EMAIL);
+}
+function coldform_sanitize_url($string) {
+	return filter_var($string, FILTER_SANITIZE_URL);
+}
+
 function contact_coldform($content='') {
 	global $contact_coldform_options, $contact_coldform_strings;
-
-	$prefix_topic = $contact_coldform_options['coldform_prefix'] . sanitize_text_field($_POST['coldform_topic']);
-	$user_topic = sanitize_text_field($_POST['coldform_topic']);
-
-	if (empty($_POST['coldform_topic'])) {
-		$topic = $contact_coldform_options['coldform_subject'];
-	} elseif (!empty($_POST['coldform_topic'])) {
-		$topic = $prefix_topic;
-	}
-	if (empty($_POST['coldform_carbon'])) {
-		$copy  = __('No carbon copy sent.', 'coldform');
-	} elseif (!empty($_POST['coldform_carbon'])) {
-		$copy  = __('Copy sent to sender.', 'coldform');
-	}
-	if (empty($_POST['coldform_website'])) {
-		$website = __('No website specified.', 'coldform');
-		
-	} elseif (!empty($_POST['coldform_website'])) {
-		$website = sanitize_text_field($_POST['coldform_website']);
-	}
+	
 	$recipient = $contact_coldform_options['coldform_email'];
 	$recipname = $contact_coldform_options['coldform_name'];
 	$recipsite = $contact_coldform_options['coldform_website'];
 	$success   = $contact_coldform_options['coldform_success'];
 	$thanks    = $contact_coldform_options['coldform_thanks'];
-	$name      = sanitize_text_field($_POST['coldform_name']);
-	$email     = sanitize_text_field($_POST['coldform_email']);
-
-	$senderip  = contact_coldform_get_ip_address();
-	$agent     = sanitize_text_field($_SERVER['HTTP_USER_AGENT']);
-	$form      = sanitize_text_field(getenv("HTTP_REFERER"));
-	$host      = gethostbyaddr($_SERVER['REMOTE_ADDR']);
 	$offset    = $contact_coldform_options['coldform_offset'];
-	$date      = date("l, F jS, Y @ g:i a", time()+$offset*60*60);
-
-	$headers   = "MIME-Version: 1.0\n";
-	$headers  .= "From: $name <$email>\n";
-	$headers  .= "Reply-To: $email\n";
-	$headers  .= "Return-Path: $email\n";
-	$headers  .= "Content-Type: text/plain; charset=\"" . get_option('blog_charset') . "\"\n";
-
-	$message   = stripslashes(strip_tags(trim($_POST['coldform_message'])));
-	$message   = wordwrap($message, 77, "\n");
-	$fullmsg   = "Hello $recipname,
+	
+	$date = date('l, F jS, Y @ g:i a', time() + $offset * 60 * 60);
+	
+	$email = coldform_sanitize_email($_POST['coldform_email']);
+	$name  = coldform_sanitize_text($_POST['coldform_name']);
+	$agent = coldform_sanitize_text($_SERVER['HTTP_USER_AGENT']);
+	$form  = coldform_sanitize_text($_SERVER['HTTP_REFERER']);
+	$host  = coldform_sanitize_text(gethostbyaddr($_SERVER['REMOTE_ADDR']));
+	$ip    = coldform_sanitize_text(contact_coldform_get_ip_address());
+	
+	if (!empty($_POST['coldform_topic'])) {
+		$submitted_topic = coldform_sanitize_text($_POST['coldform_topic']);
+		$topic = $contact_coldform_options['coldform_prefix'] . $submitted_topic;
+		$topic_display = $submitted_topic;
+	} else {
+		$topic = $contact_coldform_options['coldform_subject'];
+	}
+	
+	if (!empty($_POST['coldform_website'])) {
+		$website = coldform_sanitize_url($_POST['coldform_website']);
+	} else {
+		$website = __('No website specified.', 'coldform');
+	}
+	
+	if (!empty($_POST['coldform_carbon'])) {
+		$copy = __('Copy sent to sender.', 'coldform');
+	} else {
+		$copy = __('No carbon copy sent.', 'coldform');
+	}
+	
+	$headers  = 'X-Mailer: Contact Coldform'. "\n";
+	$headers .= 'From: '. $name .' <'. $email .'>'. "\n";
+	$headers .= 'Reply-To: '. $name .' <'. $email .'>'. "\n";
+	$headers .= 'Content-Type: text/plain; charset='. get_option('blog_charset', 'UTF-8') . "\n";
+	
+	$message = stripslashes(trim($_POST['coldform_message']));
+	$message_display = htmlentities($message);
+	$fullmsg = "Hello $recipname,
 
 You are being contacted via $recipsite:
 
@@ -372,36 +450,60 @@ $message
 
 Additional Information:
 
-IP:     $senderip
+IP:     $ip
 Site:   $recipsite
 URL:    $form
 Time:   $date
 Host:   $host
 Agent:  $agent
-Whois:  http://www.arin.net/whois/
+Whois:  http://whois.arin.net/rest/net/NET-74-82-224-0-1/pft?s=$ip
 
 ";
-	$fullmsg = stripslashes(strip_tags(trim($fullmsg)));
+	
+	
+	
+	// Begin support for BPMContext - Intranet Plus (2 of 2)
+	
+	$bpm_fields = array('contact-email' => $email, 'contact-subject' => $topic , 'contact-message' => $message, 'form-id' => 'contact-coldform');
+	$bpm_fields['additional_fields'] = array('contact-name' => $name);
+	
+	global $bpm_contact_form;
+	
+	$bpm_contact_form = array('fields' => $bpm_fields, 'form' => get_the_id());
+	
+	do_action('bpmcontext_before_send_mail', $bpm_contact_form);
+	
+	$skip_mail = false || ! empty($bpm_contact_form['skip_mail']);
+	
+	if (!$skip_mail)
+	
+	// End support for BPMContext - Intranet Plus (2 of 2)
+	
+	
+	
 	wp_mail($recipient, $topic, $fullmsg, $headers);
+	
 	if (isset($_POST['coldform_carbon']) && $_POST['coldform_carbon'] == '1') {
 		wp_mail($email, $topic, $fullmsg, $headers);
 	}
-
+	
 	if ($contact_coldform_options['coldform_custom'] !== '') {
 		$coldform_custom = '<style type="text/css">' . $contact_coldform_options['coldform_custom'] . '</style>';
-	} else { $coldform_custom = ''; }
-
+	} else { 
+		$coldform_custom = '';
+	}
+	
 	$results = '<div id="coldform_thanks">' . $success . $thanks . 
 '<pre><code>Date:       ' . $date . '
 Name:       ' . $name    . '
 Email:      ' . $email   . '
 Carbon:     ' . $copy    . '
 Website:    ' . $website . '
-Subject:    ' . $user_topic . '
-Message:    ' . $message . '</code></pre>
-<p class="coldform-reset">[ <a href="'.$form.'">'. __('Click here to reset the form.', 'coldform') .'</a> ]</p>
+Subject:    ' . $topic_display . '
+Message:    ' . $message_display . '</code></pre>
+<p class="coldform-reset">[ <a href="'. $form. '">'. __('Click here to reset the form.', 'coldform') .'</a> ]</p>
 </div>' . $coldform_custom;
-
+	
 	return $results;
 }
 
@@ -592,12 +694,17 @@ function contact_coldform_render_form() {
 	$offset = $contact_coldform_options['coldform_offset'];?>
 
 	<style type="text/css">
-		.mm-panel-overview { padding-left: 115px; background: url(<?php echo plugins_url(); ?>/contact-coldform/contact-coldform.png) no-repeat 15px 0; }
-
-		#mm-plugin-options h2 small { font-size: 60%; }
-		#mm-plugin-options h3 { cursor: pointer; }
-		#mm-plugin-options h4, 
-		#mm-plugin-options p { margin: 15px; line-height: 18px; }
+		.mm-panel-overview { 
+			padding-left: 115px; 
+			background-image: url(<?php echo plugins_url(); ?>/contact-coldform/contact-coldform.png); 
+			background-repeat: no-repeat; background-position: 15px 0; background-size: 100px 100px; 
+			}
+		
+		#mm-plugin-options h1 small { font-size: 60%; }
+		#mm-plugin-options h2 { margin: 0; padding: 12px 0 12px 15px; font-size: 16px; cursor: pointer; }
+		#mm-plugin-options h3 { margin: 20px 15px; font-size: 14px; }
+		
+		#mm-plugin-options p { margin-left: 15px; }
 		#mm-plugin-options ul { margin: 15px 15px 25px 40px; line-height: 16px; }
 		#mm-plugin-options li { margin: 8px 0; list-style-type: disc; }
 		#mm-plugin-options abbr { cursor: help; border-bottom: 1px dotted #dfdfdf; }
@@ -623,7 +730,7 @@ function contact_coldform_render_form() {
 	</style>
 
 	<div id="mm-plugin-options" class="wrap">
-		<h2><?php echo $contact_coldform_plugin; ?> <small><?php echo 'v' . $contact_coldform_version; ?></small></h2>
+		<h1><?php echo $contact_coldform_plugin; ?> <small><?php echo 'v' . $contact_coldform_version; ?></small></h1>
 		<div id="mm-panel-toggle"><a href="<?php get_admin_url() . 'options-general.php?page=' . $contact_coldform_path; ?>"><?php _e('Toggle all panels', 'coldform'); ?></a></div>
 
 		<form method="post" action="options.php">
@@ -632,7 +739,7 @@ function contact_coldform_render_form() {
 			<div class="metabox-holder">
 				<div class="meta-box-sortables ui-sortable">
 					<div id="mm-panel-overview" class="postbox">
-						<h3><?php _e('Overview', 'coldform'); ?></h3>
+						<h2><?php _e('Overview', 'coldform'); ?></h2>
 						<div class="toggle">
 							<div class="mm-panel-overview">
 								<p>
@@ -654,10 +761,10 @@ function contact_coldform_render_form() {
 						</div>
 					</div>
 					<div id="mm-panel-primary" class="postbox">
-						<h3><?php _e('Coldform Options', 'coldform'); ?></h3>
+						<h2><?php _e('Coldform Options', 'coldform'); ?></h2>
 						<div class="toggle<?php if (!isset($_GET["settings-updated"])) { echo ' default-hidden'; } ?>">
 							<p><?php _e('Use these settings to configure and customize Contact Coldform.', 'coldform'); ?></p>
-							<h4><?php _e('General options', 'coldform'); ?></h4>
+							<h3><?php _e('General options', 'coldform'); ?></h3>
 							<div class="mm-table-wrap">
 								<table class="widefat mm-table">
 									<tr>
@@ -732,7 +839,7 @@ function contact_coldform_render_form() {
 									</tr>
 								</table>
 							</div>
-							<h4><?php _e('Coldform captions', 'coldform'); ?></h4>
+							<h3><?php _e('Coldform captions', 'coldform'); ?></h3>
 							<div class="mm-table-wrap">
 								<table class="widefat mm-table">
 									<tr>
@@ -767,7 +874,7 @@ function contact_coldform_render_form() {
 									</tr>
 								</table>
 							</div>
-							<h4><?php _e('Success &amp; error messages', 'coldform'); ?></h4>
+							<h3><?php _e('Success &amp; error messages', 'coldform'); ?></h3>
 							<p><?php _e('Note: use single quotes for attributes, for example: <code>style=\'margin:10px;color:red;\'</code>', 'coldform'); ?></p>
 							<div class="mm-table-wrap">
 								<table class="widefat mm-table">
@@ -807,9 +914,9 @@ function contact_coldform_render_form() {
 						</div>
 					</div>
 					<div id="mm-panel-tertiary" class="postbox">
-						<h3><?php _e('Appearance &amp; Styles', 'coldform'); ?></h3>
+						<h2><?php _e('Appearance &amp; Styles', 'coldform'); ?></h2>
 						<div class="toggle<?php if (!isset($_GET["settings-updated"])) { echo ' default-hidden'; } ?>">
-							<h4><?php _e('Coldskin', 'coldform'); ?></h4>
+							<h3><?php _e('Coldskin', 'coldform'); ?></h3>
 							<p><?php _e('Default Coldskin styles are enabled by default. Here you may choose different Coldskin and/or add your own custom CSS styles. Note: for a complete list of CSS hooks for the Coldform, visit:', 'coldform'); ?> 
 								<a href="http://m0n.co/b" target="_blank">http://m0n.co/b</a></p>
 							<div class="mm-table-wrap">
@@ -856,18 +963,18 @@ function contact_coldform_render_form() {
 						</div>
 					</div>
 					<div id="mm-panel-secondary" class="postbox">
-						<h3><?php _e('Shortcodes &amp; Template Tags', 'coldform'); ?></h3>
+						<h2><?php _e('Shortcodes &amp; Template Tags', 'coldform'); ?></h2>
 						<div class="toggle<?php if (!isset($_GET["settings-updated"])) { echo ' default-hidden'; } ?>">
-							<h4><?php _e('Shortcode', 'coldform'); ?></h4>
+							<h3><?php _e('Shortcode', 'coldform'); ?></h3>
 							<p><?php _e('Use this shortcode to display the Coldform on a post or page:', 'coldform'); ?></p>
 							<p><code class="mm-code">[coldform]</code></p>
-							<h4><?php _e('Template tag', 'coldform'); ?></h4>
+							<h3><?php _e('Template tag', 'coldform'); ?></h3>
 							<p><?php _e('Use this template tag to display the Coldform anywhere in your theme template:', 'coldform'); ?></p>
 							<p><code class="mm-code">&lt;?php if (function_exists('contact_coldform_public')) contact_coldform_public(); ?&gt;</code></p>
 						</div>
 					</div>
 					<div id="mm-restore-settings" class="postbox">
-						<h3><?php _e('Restore Default Options', 'coldform'); ?></h3>
+						<h2><?php _e('Restore Default Options', 'coldform'); ?></h2>
 						<div class="toggle<?php if (!isset($_GET["settings-updated"])) { echo ' default-hidden'; } ?>">
 							<p>
 								<input name="contact_coldform_options[default_options]" type="checkbox" value="1" id="mm_restore_defaults" <?php if (isset($contact_coldform_options['default_options'])) { checked('1', $contact_coldform_options['default_options']); } ?> /> 
@@ -882,10 +989,10 @@ function contact_coldform_render_form() {
 						</div>
 					</div>
 					<div id="mm-panel-current" class="postbox">
-						<h3><?php _e('Updates &amp; Info', 'coldform'); ?></h3>
+						<h2><?php _e('Updates &amp; Info', 'coldform'); ?></h2>
 						<div class="toggle">
 							<div id="mm-iframe-wrap">
-								<iframe src="http://perishablepress.com/current/index-cc.html"></iframe>
+								<iframe src="https://perishablepress.com/current/index-cc.html"></iframe>
 							</div>
 						</div>
 					</div>
@@ -906,7 +1013,7 @@ function contact_coldform_render_form() {
 				jQuery('.toggle').slideToggle(300);
 				return false;
 			});
-			jQuery('h3').click(function(){
+			jQuery('h2').click(function(){
 				jQuery(this).next().slideToggle(300);
 			});
 			jQuery('#mm-panel-primary-link').click(function(){
